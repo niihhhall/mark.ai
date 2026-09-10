@@ -93,9 +93,7 @@ async def admin_redirect():
 # tolerate the legacy name, and fall back to the bundled simple dashboard.
 frontend_candidates = [
     settings.FRONTEND_DIST_PATH,   # explicit override via env (highest priority)
-    "../mark-agent-front/dist",    # sibling repo build (default)
-    "mark-agent-front/dist",       # in-repo build
-    "../after5-agent-front/dist",  # legacy name (backward compat)
+    "mark-agent-front/dist",       # in-repo vendored dashboard build (default)
     "dashboard",                   # bundled simple dashboard (last resort)
 ]
 dist_path = next((p for p in frontend_candidates if p and os.path.exists(p)), "dashboard")

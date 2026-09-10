@@ -9,3 +9,8 @@ test_failures.txt
 test_results.txt
 *.bat
 .pytest_cache
+
+# Frontend: rebuilt inside the Docker frontend stage — don't ship local copies.
+mark-agent-front/node_modules
+mark-agent-front/dist
+mark-agent-front/.env.local
