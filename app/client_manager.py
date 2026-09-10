@@ -102,84 +102,15 @@ class ClientManager:
 
     async def init_all_clients(self):
         """
-        Auto-load all clients from Supabase and signal OpenWA/Baileys service to start sessions.
-        Called on startup (Module 6 pattern).
+        Startup hook (Module 6 pattern).
+
+        This deployment runs on the official WhatsApp Cloud API, where inbound
+        messages arrive via the Meta webhook — there are no local sessions to
+        start. Kept as a no-op so the startup task and any future provider
+        wiring have a stable entry point.
         """
-        import httpx
-        from app.config import settings
-
-        # When running on the official WhatsApp Cloud API, inbound arrives via the
-        # Meta webhook — there is no Baileys/OpenWA session to start. Skip entirely
-        # to avoid the Baileys link/reconnect churn.
-        if (settings.MESSAGING_PROVIDER or "").lower() == "whatsapp_cloud":
-            logger.info("[ClientManager] MESSAGING_PROVIDER=whatsapp_cloud — skipping Baileys/OpenWA session init (Cloud API uses webhooks).")
-            return
-
-        logger.info("[ClientManager] 🚀 Initializing all clients from Supabase...")
-        clients = await self.list_clients()
-        
-        openwa_api_url = settings.OPENWA_API_URL or "http://localhost:2785"
-        headers = {
-            "X-API-Key": settings.OPENWA_API_KEY,
-            "Content-Type": "application/json"
-        }
-        
-        for client in clients:
-            client_id = client.get("id")
-            whatsapp_number = client.get("whatsapp_number")
-            provider = client.get("messaging_provider") or client.get("provider", "baileys")
-            
-            if not client_id: continue
-
-            if provider == "whatsapp_cloud":
-                logger.info(f"[ClientManager] Skipping OpenWA for Cloud API client: {client.get('business_name')}")
-                continue
-
-            # Handle OpenWA / Baileys integration
-            if provider == "baileys":
-                logger.info(f"[ClientManager] Starting Baileys session for {client.get('business_name')} ({client_id})")
-                try:
-                    async with httpx.AsyncClient() as http_client:
-                        await http_client.post(
-                            f"{settings.BAILEYS_API_URL}/sessions/start",
-                            json={
-                                "sessionId": client_id,
-                                "phoneNumber": whatsapp_number
-                            },
-                            timeout=5.0
-                        )
-                except Exception as e:
-                    logger.error(f"[ClientManager] Failed to signal Baileys for client {client_id}: {e}")
-            else:
-                logger.info(f"[ClientManager] Starting OpenWA session for {client.get('business_name')} ({client_id})")
-                try:
-                    async with httpx.AsyncClient() as http_client:
-                        # 1. Register Webhook
-                        if settings.OPENWA_WEBHOOK_URL:
-                            webhook_payload = {
-                                "url": settings.OPENWA_WEBHOOK_URL,
-                                "events": ["message"],
-                                "secret": settings.OPENWA_WEBHOOK_SECRET
-                            }
-                            await http_client.post(
-                                f"{openwa_api_url}/api/webhooks",
-                                headers=headers,
-                                json=webhook_payload,
-                                timeout=5.0
-                            )
-                        
-                        # 2. Start Session
-                        await http_client.post(
-                            f"{openwa_api_url}/api/sessions/start",
-                            headers=headers,
-                            json={
-                                "sessionId": client_id,
-                                "phoneNumber": whatsapp_number
-                            },
-                            timeout=5.0
-                        )
-                except Exception as e:
-                    logger.error(f"[ClientManager] Failed to signal OpenWA for client {client_id}: {e}")
+        logger.info("[ClientManager] WhatsApp Cloud API — no local sessions to initialize (inbound via Meta webhook).")
+        return
 
     def invalidate_cache(self, client_id: Optional[str] = None):
         """Clear cache for specific client or all."""

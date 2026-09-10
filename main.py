@@ -7,7 +7,6 @@ from app.outbound import router as outbound_router
 from app.calcom import router as calcom_router
 from app.training_api import router as training_router
 from app.dashboard import router as dashboard_router
-from app.webhooks import router as whatsapp_webhook_router
 from app.config import settings
 import sentry_sdk
 import os
@@ -41,7 +40,6 @@ async def lifespan(app: FastAPI):
     import asyncio
     from app.conversation_library import load_conversation_library
     from app.redis_client import redis_client
-    from app.baileys_bridge import baileys_bridge
     from app.client_manager import client_manager
 
     # Wrap Redis initialization in a background task to prevent blocking health checks
@@ -57,11 +55,7 @@ async def lifespan(app: FastAPI):
             logger.error(f"[Startup] ERROR: Failed to load library: {e}")
 
     asyncio.create_task(init_redis_data())
-    
-    # Start Baileys Bridge for direct WhatsApp integration
-    asyncio.create_task(baileys_bridge.start())
-    logger.info("OK: Baileys Bridge listener launched")
-    
+
     # Auto-initialize all clients (Module 6)
     asyncio.create_task(client_manager.init_all_clients())
     logger.info("OK: Multi-session client initialization triggered")
@@ -69,9 +63,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # SHUTDOWN
-    from app.baileys_bridge import baileys_bridge
-    logger.info("Stopping Baileys Bridge...")
-    await baileys_bridge.stop()
+    logger.info("Application shutting down.")
 
 app = FastAPI(title="Markeye WhatsApp AI Agent — Mark", version="2.0.0", lifespan=lifespan)
 
@@ -95,12 +87,20 @@ from fastapi.responses import RedirectResponse
 async def admin_redirect():
     return RedirectResponse(url="/admin/dashboard/")
 
-# Try to serve the premium dashboard if built, fallback to simple dashboard
-dist_path = "../after5-agent-front/dist"
-if os.path.exists(dist_path):
-    app.mount("/admin/dashboard", StaticFiles(directory=dist_path, html=True), name="admin")
-else:
-    app.mount("/admin/dashboard", StaticFiles(directory="dashboard", html=True), name="admin")
+# Serve the admin dashboard (Mark frontend). Resolve the built SPA from the
+# first candidate path that exists so we support the frontend living either as a
+# sibling repo (../mark-agent-front) or inside this repo (./mark-agent-front),
+# tolerate the legacy name, and fall back to the bundled simple dashboard.
+frontend_candidates = [
+    settings.FRONTEND_DIST_PATH,   # explicit override via env (highest priority)
+    "../mark-agent-front/dist",    # sibling repo build (default)
+    "mark-agent-front/dist",       # in-repo build
+    "../after5-agent-front/dist",  # legacy name (backward compat)
+    "dashboard",                   # bundled simple dashboard (last resort)
+]
+dist_path = next((p for p in frontend_candidates if p and os.path.exists(p)), "dashboard")
+app.mount("/admin/dashboard", StaticFiles(directory=dist_path, html=True), name="admin")
+logger.info(f"[Dashboard] Serving admin UI from: {dist_path}")
 
 app.include_router(webhook_router)
 app.include_router(outbound_router)
