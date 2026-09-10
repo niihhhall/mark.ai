@@ -244,6 +244,29 @@ class MarkTracker:
             return {}
         try:
             client = await supabase_client.get_client()
+
+            # Idempotency: Cal.com can deliver the same BOOKING_CREATED event more
+            # than once (retries / multiple triggers). Keyed on calendly_event_id
+            # so a duplicate webhook updates the existing row instead of inserting
+            # a second identical booking.
+            if calendly_event_id:
+                existing = await client.table("bookings").select("*").eq(
+                    "calendly_event_id", calendly_event_id
+                ).execute()
+                if existing.data:
+                    updated = await client.table("bookings").update({
+                        "lead_id": lead_id,
+                        "scheduled_at": scheduled_at,
+                        "status": "confirmed",
+                    }).eq("calendly_event_id", calendly_event_id).execute()
+                    await self.update_outcome(lead_id, "Meeting Booked")
+                    await self.update_state(lead_id, "Confirmed")
+                    logger.info(
+                        f"[Mark Tracker] OK: Booking already existed for event "
+                        f"{calendly_event_id}, updated (no duplicate)."
+                    )
+                    return updated.data[0] if updated.data else existing.data[0]
+
             result = await client.table("bookings").insert({
                 "lead_id": lead_id,
                 "calendly_event_id": calendly_event_id,
