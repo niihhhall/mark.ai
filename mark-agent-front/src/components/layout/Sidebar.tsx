@@ -22,7 +22,6 @@ const navSections: { title: string; items: NavItem[] }[] = [
         items: [
             { label: 'Overview', icon: 'solar:widget-4-linear', path: '/' },
             { label: 'Leads', icon: 'solar:users-group-rounded-linear', path: '/leads' },
-            { label: 'Conversations', icon: 'solar:chat-line-linear', path: '/conversations' },
             { label: 'Bookings', icon: 'solar:calendar-mark-linear', path: '/bookings' },
         ],
     },

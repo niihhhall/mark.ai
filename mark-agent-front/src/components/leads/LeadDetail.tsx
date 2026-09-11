@@ -93,20 +93,26 @@ export const LeadDetail: React.FC<LeadDetailProps> = ({ lead, onClose, refetch }
 
     return (
         <div className="flex flex-col h-full bg-white relative custom-scrollbar overflow-y-auto overflow-x-hidden">
-            <div className="flex items-center justify-between p-8 border-b border-border sticky top-0 z-20 bg-white">
-                <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center text-white shadow-card">
-                        <Icon icon="solar:user-rounded-linear" width={28} />
+            <div className="flex items-center justify-between gap-4 p-8 border-b border-border sticky top-0 z-20 bg-white">
+                <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-14 h-14 rounded-2xl bg-brand text-white flex items-center justify-center shadow-card shrink-0">
+                        <Icon icon="solar:user-rounded-bold" width={28} />
                     </div>
-                    <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-ink">{lead.first_name} {lead.last_name || ''}</h2>
-                        <div className="flex items-center gap-3 mt-1.5">
+                    <div className="min-w-0">
+                        <h2 className="text-2xl font-bold tracking-tight text-ink truncate">{lead.first_name} {lead.last_name || ''}</h2>
+                        <div className="flex items-center gap-2.5 mt-1.5">
+                            {lead.company && (
+                                <span className="flex items-center gap-1.5 text-sm font-medium text-ink-muted min-w-0">
+                                    <Icon icon="solar:buildings-2-linear" width={15} className="text-ink-faint shrink-0" />
+                                    <span className="truncate">{lead.company}</span>
+                                </span>
+                            )}
                             <Badge variant="source" value={lead.lead_source} label="Source" />
-                            <SignalScore score={lead.signal_score} />
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
+                    <SignalScore score={lead.signal_score} size="sm" />
                     <button
                         onClick={handleResetSession}
                         disabled={isResetting}

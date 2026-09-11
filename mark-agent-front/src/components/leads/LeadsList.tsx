@@ -47,7 +47,7 @@ export const LeadsList: React.FC<LeadsListProps> = ({
                         placeholder="Search leads..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="input-modern pl-11"
+                        className="input-modern !pl-11"
                     />
                 </div>
 

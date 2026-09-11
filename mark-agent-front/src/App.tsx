@@ -1,6 +1,6 @@
 import React, { useState, Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { Sidebar } from './components/layout/Sidebar'
 import { Header } from './components/layout/Header'
@@ -12,7 +12,6 @@ import { hasValidConfig, updateSupabaseConfig } from './lib/supabase'
 // Pages
 import Overview from './pages/Overview'
 import Leads from './pages/Leads'
-import Conversations from './pages/Conversations'
 import Bookings from './pages/Bookings'
 import AgentPerformance from './pages/AgentPerformance'
 import Training from './pages/Training'
@@ -99,7 +98,6 @@ const AppContent: React.FC = () => {
     switch (location.pathname) {
       case '/': return 'Overview'
       case '/leads': return 'Leads'
-      case '/conversations': return 'Conversations'
       case '/bookings': return 'Bookings'
       case '/training': return 'Training'
       case '/performance': return 'Agent Performance'
@@ -140,7 +138,7 @@ const AppContent: React.FC = () => {
           <Routes>
             <Route path="/" element={<Overview leads={leads} isLoading={isLoading} />} />
             <Route path="/leads" element={<Leads leads={leads} isLoading={isLoading} refetch={refetch} />} />
-            <Route path="/conversations" element={<Conversations leads={leads} isLoading={isLoading} refetch={refetch} />} />
+            <Route path="/conversations" element={<Navigate to="/leads" replace />} />
             <Route path="/bookings" element={<Bookings leads={leads} isLoading={isLoading} />} />
             <Route path="/training" element={<Training />} />
             <Route path="/performance" element={<AgentPerformance />} />
