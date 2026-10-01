@@ -1,0 +1,104 @@
+# Render Blueprint (Infrastructure as Code)
+# Docs: https://render.com/docs/blueprint-spec
+#
+# This mirrors the existing `markeye-whatsapp-agent` web service.
+# Runtime is Docker (builds from ./Dockerfile, app listens on :8000, health at /health).
+#
+# Secrets (sync: false) are NOT stored here. Set their values in the Render
+# Dashboard -> Environment, or they'll be prompted when syncing the blueprint.
+# Everything with an explicit `value` below is a non-secret default.
+
+services:
+  - type: web
+    name: markeye-whatsapp-agent
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter            # 0.5 CPU / 512 MB, always-on ($7/mo). Free tier sleeps after 15 min.
+    region: oregon
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # Render routes to the port your container listens on; Dockerfile uses 8000.
+      - key: PORT
+        value: "8000"
+
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+
+      # === WhatsApp Cloud API (Meta) — SECRETS ===
+      - key: MESSAGING_PROVIDER
+        value: whatsapp_cloud
+      - key: WHATSAPP_API_VERSION
+        value: v21.0
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+
+      # === LLM providers — SECRETS ===
+      - key: FIREWORKS_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+
+      # === Vector grounding (optional) ===
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: USE_PINECONE_GROUNDING
+        value: "false"
+
+      # === Datastores — SECRETS ===
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+      # === Monitoring / security — SECRETS ===
+      - key: SENTRY_DSN
+        sync: false
+      - key: OUTBOUND_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+      # === Integrations ===
+      - key: CALCOM_LINK
+        value: https://cal.com/markeye/free-discovery-call
+      - key: SALES_PHONE_NUMBER
+        sync: false
+
+      # === Behavior flags (safe defaults, override anytime) ===
+      - key: USE_LAYERED_CONTEXT
+        value: "true"
+      - key: USE_STRUCTURED_MEMORY
+        value: "false"
+      - key: ENABLE_CLAIM_FILTER
+        value: "true"
+      - key: MAX_CONTEXT_MESSAGES
+        value: "35"

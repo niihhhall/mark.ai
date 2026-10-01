@@ -88,7 +88,7 @@ Full decision records live in [`docs/adr/`](docs/adr/).
 
 ## ⚙️ Configuration Flags
 
-All behavior toggles live in Heroku config vars (or `.env`) for instant rollback with no redeploy:
+All behavior toggles live in Render environment variables (or `.env`) for instant rollback with no redeploy:
 
 | Flag | Default | Purpose |
 |---|---|---|
@@ -109,7 +109,7 @@ All behavior toggles live in Heroku config vars (or `.env`) for instant rollback
 Copy `.env.example` to `.env` and provide:
 - **Meta WhatsApp Cloud API**: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` (permanent System User token), `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`.
 - **Fireworks**: `FIREWORKS_API_KEY`.
-- **Redis**: `REDIS_URL` (Heroku Key-Value Store).
+- **Redis**: `REDIS_URL` (or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
 - **Supabase**: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`.
 - **Pinecone** (optional grounding): `PINECONE_API_KEY`.
 
@@ -129,7 +129,9 @@ python scripts/ingest_kb.py      # creates the Pinecone index and loads prompts/
 Re-run whenever the knowledge base changes (idempotent by record id).
 
 ### 5. Deploy
-Push to `main` → Heroku auto-deploys. Confirm health via `/health` and `/metrics`.
+Hosted on **Render** (Pro workspace) as the `markeye-whatsapp-agent` web service on the paid **Starter** instance (0.5 CPU / 512 MB, always-on, no free-tier sleep). Config lives in `render.yaml`.
+
+Push to `main` → Render auto-deploys. Live at https://markeye-whatsapp-agent.onrender.com (admin dashboard at `/admin`). Confirm health via `/health` and `/metrics`.
 
 ---
 
