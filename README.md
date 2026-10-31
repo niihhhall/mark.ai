@@ -1,185 +1,356 @@
-# 👁️ Mark, AI SDR for WhatsApp
+<div align="center">
 
-[![Python](https://img.shields.io/badge/Backend-Python_3.11-blue?logo=python&logoColor=white)](https://fastapi.tiangolo.com/)
+<img src="mark-agent-front/markeye-logo/markeye-logo-blue.png" alt="Markeye logo" width="96" />
+
+# Mark, AI SDR for WhatsApp
+
+**A human-sounding sales rep that qualifies inbound WhatsApp leads and books them onto discovery calls, around the clock.**
+
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-orange?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
-[![Meta](https://img.shields.io/badge/Channel-WhatsApp_Cloud_API-25D366?logo=whatsapp&logoColor=white)](https://developers.facebook.com/docs/whatsapp/cloud-api/)
-[![Fireworks](https://img.shields.io/badge/LLM-Fireworks_AI-5019C9)](https://fireworks.ai/)
-[![Pinecone](https://img.shields.io/badge/Grounding-Pinecone-000000)](https://www.pinecone.io/)
+[![LangGraph](https://img.shields.io/badge/Engine-LangGraph-1C3C3C?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![WhatsApp Cloud API](https://img.shields.io/badge/Channel-WhatsApp_Cloud_API-25D366?logo=whatsapp&logoColor=white)](https://developers.facebook.com/docs/whatsapp/cloud-api/)
+[![Fireworks AI](https://img.shields.io/badge/LLM-Fireworks_AI-5019C9)](https://fireworks.ai/)
+[![Hosted on Render](https://img.shields.io/badge/Hosting-Render-46E3B7?logo=render&logoColor=white)](https://render.com/)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-lightgrey)](LICENSE)
 
-> **A human-sounding sales rep that qualifies inbound WhatsApp leads and books them onto discovery calls, around the clock.**
->
-> Mark is a production FastAPI service that receives WhatsApp messages via the **official Meta WhatsApp Cloud API**, runs them through a **LangGraph** conversation engine powered by **Fireworks AI**, and books qualified leads, while staying on-persona and grounded in a real knowledge base.
-
----
-
-## ✨ Highlights
-
-- **Official Meta WhatsApp Cloud API** — no reverse-engineered libraries, no ban risk. Production runs entirely on Meta's supported path.
-- **Fireworks-only LLM chain** — one provider, three models with automatic fail-fast fallback.
-- **Context-engineered prompt** — a layered, per-turn assembled system prompt instead of one monolith (~60% fewer input tokens per reply).
-- **Structured conversation memory** — durable per-lead facts that survive 30-40 message threads without "forgetting".
-- **Retrieval grounding** — Pinecone-backed knowledge base so factual answers are retrieved, not hallucinated.
-- **Deterministic guardrails** — a code-level output filter that strips banned claims, em dashes, and emojis on every message.
-- **Flag-gated everything** — each capability toggles from a config var with instant rollback, no redeploy.
+</div>
 
 ---
 
-## 🏗️ Architecture
+## Table of contents
+
+- [About the project](#about-the-project)
+- [Features](#features)
+- [How it works](#how-it-works)
+- [How to install and run](#how-to-install-and-run)
+- [How to use](#how-to-use)
+- [Configuration flags](#configuration-flags)
+- [Tests](#tests)
+- [Roadmap](#roadmap)
+- [How to contribute](#how-to-contribute)
+- [Credits](#credits)
+- [License](#license)
+
+---
+
+## About the project
+
+### The problem
+
+A business that runs ads or a contact form gets leads at all hours. Most of those leads go cold because nobody replies within the first few minutes, and sales reps spend their day asking the same qualifying questions again and again.
+
+### What Mark does
+
+Mark is an AI sales development rep (SDR) that lives on a WhatsApp business number. When a new lead fills in a form or sends a message, Mark:
+
+1. Replies in a natural, human way, with read receipts, typing pauses and short message bubbles.
+2. Asks qualifying questions and scores the lead on Budget, Authority, Need and Timeline (BANT).
+3. Answers factual questions from a real knowledge base instead of guessing.
+4. Offers call times and sends the booking link when the lead is ready.
+5. Hands the conversation to a human rep when it should.
+
+Everything Mark does is logged to Supabase, so the team can follow each lead in the admin dashboard.
+
+### Why these technologies
+
+| Choice | Reason |
+|---|---|
+| Official Meta WhatsApp Cloud API | The supported, ban-safe way to run a business number. No reverse-engineered libraries. |
+| FastAPI | Fast async Python web server for the webhook and admin endpoints. |
+| LangGraph | Splits each reply into small, testable steps instead of one large prompt call. |
+| Fireworks AI | One provider with three models in a fail-fast chain, so a slow model never stalls a reply. |
+| Redis | Buffers rapid messages and holds live session state and lead memory. |
+| Supabase | Stores clients, leads, transcripts and training data, and powers the dashboard. |
+| Pinecone (optional) | Retrieval grounding with built-in embeddings, so factual answers come from the knowledge base. |
+
+### Challenges
+
+- **Long threads:** a simple summary made Mark "forget" facts after 30 or more messages. A structured per-lead memory fixed this (see [ADR 0003](docs/adr/0003-structured-conversation-memory.md)).
+- **Prompt size:** one 41,000 character prompt was sent on every reply. A layered prompt, built per turn, cut input tokens by about 60% (see [ADR 0001](docs/adr/0001-layered-context-architecture.md)).
+- **Slow model calls:** SDK retries on the same slow model once stacked one reply to 77 seconds. Retries are now off, and Mark moves to the next model instead.
+- **Made-up claims:** instructions alone did not stop the model from inventing claims. A code-level output filter now removes banned claims, dashes and emojis before every send (see [ADR 0004](docs/adr/0004-grounding-and-hallucination-filter.md)).
+
+---
+
+## Features
+
+- **Official WhatsApp Cloud API only.** Earlier Baileys and OpenWA providers were removed.
+- **Human behavior layer.** Blue ticks, reading delay, think pause, typing indicator and a gap between message bubbles. A new message from the lead interrupts typing.
+- **Message buffer.** Waits for 5 seconds of silence (8 seconds at most) so several quick messages get one reply.
+- **Fireworks model chain.** Primary, secondary and fallback models, with no retries on a slow model.
+- **Layered context.** The system prompt is assembled per turn from soul, facts, playbook and style layers, plus knowledge only when it is relevant.
+- **Structured lead memory.** Company, pains, objections and booking status are kept for each lead.
+- **Retrieval grounding.** Optional Pinecone index loaded from the `prompts/` knowledge files.
+- **Output guard.** Deterministic filter for banned claims, em dashes and emojis.
+- **BANT scoring.** Runs in the background and decides when Mark pushes for a booking.
+- **Voice notes.** WhatsApp voice notes are transcribed with OpenAI Whisper (needs `OPENAI_API_KEY`).
+- **Cal.com booking.** Sends the booking link and receives booking events on `/calcom-webhook`.
+- **Multi-client.** Each business (client) has its own settings and prompt in Supabase.
+- **Admin dashboard.** A React app served by the backend at `/admin`, with overview, leads, conversations, bookings, agent performance, instances and training pages.
+- **Training data export.** Finished conversations can be labelled and exported for model training.
+- **Flag-gated changes.** Each new capability turns on or off with an environment variable.
+
+---
+
+## How it works
 
 ```mermaid
 graph TD
-    U((WhatsApp Lead)) -->|inbound| META[Meta WhatsApp Cloud API]
+    U((WhatsApp lead)) -->|message| META[Meta WhatsApp Cloud API]
     META -->|webhook| WH[FastAPI /webhook]
-    WH --> BUF[Redis buffer + interrupt guard]
+    WH --> BUF[Redis buffer and interrupt guard]
     BUF --> LG[LangGraph engine]
-
-    subgraph LG_NODES [LangGraph nodes]
-      CTX[load context] --> STG[classify stage]
-      STG --> KN[retrieve knowledge] --> GEN[generate reply]
-      GEN --> TOOL[execute tools] --> DEL[deliver] --> PER[persist + distill]
+    subgraph NODES [LangGraph nodes]
+      CTX[load_context] --> SP[handle_special] --> STG[classify_stage] --> SPAM[check_spam]
+      SPAM --> KN[retrieve_knowledge] --> GEN[generate_response]
+      GEN --> TOOL[execute_tools] --> DEL[deliver_response] --> PER[persist_session]
     end
-
     LG --> FW[Fireworks AI, 3-model chain]
-    KN --> PC[(Pinecone, grounding)]
-    LG --> RD[(Redis, sessions + memory)]
-    LG --> SB[(Supabase, leads + transcripts)]
-    GEN --> OG[Output Guard, sanitize + claim filter]
-    OG -->|outbound| META
-    LG -.-> DASH[Admin dashboard /admin]
+    KN --> PC[(Pinecone, optional)]
+    LG --> RD[(Redis, sessions and memory)]
+    LG --> SB[(Supabase, leads and transcripts)]
+    GEN --> OG[Output guard]
+    OG -->|reply| META
+    SB -.-> DASH[Admin dashboard /admin]
 ```
 
-**Flow:** a lead messages the Meta number → webhook buffers rapid messages (5s silence / 8s hard-max) → LangGraph loads context, classifies the sales stage, optionally retrieves grounding from Pinecone, generates a reply via Fireworks, runs it through the output guard, and delivers it with human-like typing. In the background it distills structured lead memory and BANT signals into Redis + Supabase.
+1. A lead messages the business number, or a form sends the lead to `/form-webhook`.
+2. Meta calls `/webhook`. Mark checks the signature when `WHATSAPP_APP_SECRET` is set.
+3. Redis buffers quick messages into one turn.
+4. LangGraph loads the lead's context, handles special cases, classifies the sales stage, checks for spam and, if needed, retrieves knowledge.
+5. Fireworks AI writes the reply. The output guard cleans it.
+6. Mark sends the reply with human-like timing and saves the session, memory and BANT signals.
+
+| Part | Folder or file |
+|---|---|
+| LangGraph graph and nodes | `app/graph/` |
+| Layered prompt files | `prompts/layers/` |
+| Prompt assembly | `app/context_assembler.py` |
+| Lead memory | `app/lead_memory.py` |
+| Knowledge retrieval | `app/knowledge.py` |
+| Output guard | `app/output_guard.py` |
+| BANT scoring | `app/bant.py` |
+| Human timing | `app/human_behavior.py` |
+| Model chain | `app/llm_router.py` |
+| Database tables | `supabase/migrations/` |
+| Admin dashboard (React) | `mark-agent-front/` |
+| Design decisions | `docs/adr/` |
 
 ---
 
-## 🧠 The Conversation Engine
+## How to install and run
 
-| Layer | What it does | Source |
+### What you need
+
+| Service | Used for | Settings (names only) |
 |---|---|---|
-| **LangGraph graph** | 9 isolated, testable nodes: load → classify → retrieve → generate → tools → deliver → persist | `app/graph/` |
-| **Layered context** | Assembles the system prompt per turn from `soul / facts / playbook / style` (+ `knowledge` only when relevant) | ADR 0001 |
-| **Structured memory** | Per-lead record (company, pains, objections, booking status) distilled every turn | ADR 0003 |
-| **Grounding** | Pinecone retrieval with integrated `llama-text-embed-v2` embeddings (no OpenAI) | ADR 0004 |
-| **Output guard** | Deterministic strip of banned claims, em dashes, emojis before send | ADR 0004 |
-| **BANT engine** | Background scoring of Budget / Authority / Need / Timeline gating the booking push | `app/bant.py` |
+| Meta WhatsApp Cloud API | Send and receive messages | `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_API_VERSION` |
+| Fireworks AI | Writes the replies | `FIREWORKS_API_KEY` |
+| Redis or Upstash | Buffer, sessions and memory | `REDIS_URL`, or `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` |
+| Supabase | Clients, leads, transcripts | `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_KEY` |
+| Cal.com | Booking link | `CALCOM_LINK` |
+| Pinecone (optional) | Knowledge grounding | `PINECONE_API_KEY` |
+| OpenAI (optional) | Voice note transcription | `OPENAI_API_KEY` |
+| Sentry (optional) | Error tracking | `SENTRY_DSN` |
+| Mark itself | Protects the outbound and debug endpoints | `OUTBOUND_API_KEY`, `ALLOWED_ORIGINS` |
+
+You also need Python 3.11, and Node.js 20 if you want to build the dashboard yourself.
+
+### Steps
+
+1. Clone the repo and open the folder.
+
+   ```bash
+   git clone https://github.com/niihhhall/mark.ai.git
+   cd mark.ai
+   ```
+
+2. Make a virtual environment and install the packages.
+
+   ```bash
+   python -m venv .venv
+   # Windows PowerShell: .\.venv\Scripts\Activate.ps1
+   # macOS or Linux:      source .venv/bin/activate
+   python -m pip install -r requirements.txt
+   ```
+
+3. Copy `.env.example` to `.env` and fill in the settings from the table above. Never commit `.env`.
+
+4. Create the database tables by running the SQL files in `supabase/migrations/` in number order in your Supabase project.
+
+5. Start the backend.
+
+   ```bash
+   uvicorn main:app --port 8000
+   ```
+
+   Check that it runs: `http://localhost:8000/health` returns `{"status": "ok"}`.
+
+6. Connect the Meta webhook. In your Meta app, set the webhook URL to `https://<your-host>/webhook`, use the same verify token as `WHATSAPP_VERIFY_TOKEN`, and subscribe to the `messages` field. Then subscribe the app to your WhatsApp Business Account (`POST /{WABA_ID}/subscribed_apps`).
+
+7. Optional: load the knowledge base into Pinecone. This reads `prompts/layers/knowledge.md`, `prompts/knowledge/` and `prompts/objections/`. Run it again after each knowledge change; it is safe to repeat.
+
+   ```bash
+   python scripts/ingest_kb.py
+   ```
+
+8. Optional: push `prompts/system_prompt.txt` into a client's prompt in Supabase.
+
+   ```bash
+   python scripts/sync_prompt.py              # default client
+   python scripts/sync_prompt.py <client_id>  # one client
+   ```
+
+### Run with Docker
+
+The `Dockerfile` builds the dashboard in a Node.js stage, then runs the Python backend on port 8000.
+
+```bash
+docker build -t mark .
+docker run --env-file .env -p 8000:8000 mark
+```
+
+### Deploy
+
+Production runs on [Render](https://render.com/) as a Docker web service, set up in `render.yaml`. A push to `main` starts a new deploy. Commits that only change docs can include `[skip render]` in the message to skip the deploy. Secrets are set in the Render dashboard, never in `render.yaml`.
 
 ---
 
-## 📊 Optimization Audit
+## How to use
 
-The engine was rebuilt from a single 41k-character prompt into a context-engineered pipeline. Every optimization is measured, reversible, and behind a flag.
+### Admin dashboard
 
-| Optimization | Before | After | Impact |
+Open `/admin` on your host. The first time, the dashboard asks for your Supabase project URL and anon key to connect to your workspace. To work on the dashboard itself:
+
+```bash
+cd mark-agent-front
+npm ci
+npm run dev
+```
+
+### Send a lead to Mark
+
+Mark sends the first message to a new lead from a form or a script. These endpoints need the `X-API-Key` header with your `OUTBOUND_API_KEY`.
+
+```bash
+curl -X POST https://<your-host>/form-webhook \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <OUTBOUND_API_KEY>" \
+  -d '{"first_name": "Sam", "phone": "+15550000000", "company": "Acme"}'
+```
+
+| Endpoint | What it does |
+|---|---|
+| `POST /form-webhook` | Starts outreach from a website or n8n form (`first_name` or `name`, `phone`, optional `company` and `client_id`). |
+| `POST /send-outbound` | Starts outreach from a JSON body with `name`, `phone` and `company`. |
+| `POST /follow-up` | Sends the follow-up message to a lead (`lead_id`, `name`, `phone`). |
+
+The first message to a new lead must use an approved Meta message template. Free-form messages are allowed only inside the 24-hour window that opens when the lead replies.
+
+### Actions Mark can take
+
+Mark adds these tags to the end of a reply. The tags are removed before the lead sees the message.
+
+| Tag | Action |
+|---|---|
+| `[SEND_BOOKING_POLL]` | Offers call times in a clickable poll. |
+| `[SEND_CALENDLY]` | Sends the Cal.com booking link (the tag keeps its old name). Only when the lead asks or agrees. |
+| `[SEND_PRICING]` | Sends the pricing overview. |
+| `[ESCALATE]` | Hands the conversation to a human rep. |
+
+### Checks and diagnostics
+
+| Endpoint | What it shows | Key needed |
+|---|---|---|
+| `GET /health` | The service is up. | No |
+| `GET /metrics` | Uptime, message count and LLM usage. | No |
+| `GET /debug/prompt-source` | Which prompt source is live and which flags are on. | Yes, `X-API-Key` |
+| `GET /debug/memory/{phone}` | The stored memory for one lead. | Yes, `X-API-Key` |
+
+The debug endpoints stay off when `OUTBOUND_API_KEY` is not set.
+
+---
+
+## Configuration flags
+
+Each flag is an environment variable, so you can turn a capability on or off in Render (or `.env`) without a code change.
+
+| Flag | Default in code | Purpose |
+|---|---|---|
+| `MESSAGING_PROVIDER` | `whatsapp_cloud` | Messaging channel. `whatsapp_cloud` is the only supported value. |
+| `USE_LAYERED_CONTEXT` | `true` | Layered prompt assembly ([ADR 0001](docs/adr/0001-layered-context-architecture.md)). |
+| `USE_STRUCTURED_MEMORY` | `false` | Structured per-lead memory ([ADR 0003](docs/adr/0003-structured-conversation-memory.md)). |
+| `USE_PINECONE_GROUNDING` | `false` | Pinecone retrieval grounding ([ADR 0004](docs/adr/0004-grounding-and-hallucination-filter.md)). |
+| `ENABLE_CLAIM_FILTER` | `true` | Banned-claims output filter ([ADR 0004](docs/adr/0004-grounding-and-hallucination-filter.md)). |
+| `MAX_CONTEXT_MESSAGES` | `35` | Recent messages sent to the model per reply. |
+| `INPUT_BUFFER_SECONDS` | `5.0` | Silence to wait for before Mark replies. |
+| `INPUT_BUFFER_MAX_SECONDS` | `8.0` | Longest wait before Mark replies. |
+
+### Measured results
+
+| Change | Before | After | Result |
 |---|---|---|---|
-| **Prompt assembly** | 1 monolith, ~41,000 chars injected every reply | Layered, per-turn (~16k chars, KB loaded only when relevant) | **~60% fewer input tokens** (~10.3k → ~4.7k per reply) |
-| **LLM providers** | 4 providers, model-override bug caused 404 cascades | Fireworks-only, 3-model fail-fast chain | Fewer failures, cheaper, simpler |
-| **Slow-call handling** | SDK retried the same slow model (one call hit 77s) | `max_retries=0` → fail over to next model | No more minute-long stalls |
-| **Long-thread memory** | Lossy summary blob, Mark "forgot" facts | Structured `lead_memory`, dedicated Redis key | Recall holds across 30-40 messages |
-| **Factual answers** | Prompt-only, could hallucinate | Pinecone retrieval grounding | Answers are sourced, not guessed |
-| **Hallucination control** | Instruction-only "never lie" | Deterministic output filter + evals | Banned claims can't ship |
-| **Context window** | Last 10 raw messages | Configurable, default 35 | Richer recent context |
-
-**Quality gates:** a deterministic eval harness (`tests/`) encodes every style/hallucination rule as a test (dashes, emojis, banned claims, memory-merge safety) so regressions can't silently ship.
-
-Full decision records live in [`docs/adr/`](docs/adr/).
+| Prompt assembly | One prompt of about 41,000 characters on every reply | Layered, about 16,000 characters, knowledge only when relevant | About 60% fewer input tokens (about 10.3k to 4.7k per reply) |
+| LLM providers | 4 providers, a model-override bug caused 404 errors | Fireworks only, 3-model fail-fast chain | Fewer failures, simpler setup |
+| Slow calls | The SDK retried the same slow model (one call took 77 seconds) | `max_retries=0`, then the next model | No more minute-long stalls |
+| Long threads | A summary that lost facts | Structured lead memory in its own Redis key | Facts kept across 30 to 40 messages |
+| Context window | Last 10 messages | Configurable, default 35 | More recent context |
 
 ---
 
-## ⚙️ Configuration Flags
+## Tests
 
-All behavior toggles live in Render environment variables (or `.env`) for instant rollback with no redeploy:
+The tests in `tests/` check the rules Mark must follow: no dashes or emojis, no banned claims, safe memory merges, message buffering and chunking, phone number handling, the state machine, templates, the webhook and the WhatsApp Cloud client. They run offline and do not send real messages.
 
-| Flag | Default | Purpose |
-|---|---|---|
-| `MESSAGING_PROVIDER` | `whatsapp_cloud` | Messaging channel (production is always Meta Cloud API) |
-| `USE_LAYERED_CONTEXT` | `true` | Layered prompt assembly (ADR 0001) |
-| `USE_STRUCTURED_MEMORY` | `true`* | Structured per-lead memory (ADR 0003) |
-| `USE_PINECONE_GROUNDING` | `true`* | Pinecone retrieval grounding (ADR 0004) |
-| `ENABLE_CLAIM_FILTER` | `true` | Deterministic banned-claims output filter (ADR 0004) |
-| `MAX_CONTEXT_MESSAGES` | `35` | Recent raw messages sent to the LLM per reply |
-
-*\*Default `false` in code; enabled in the production environment.*
-
----
-
-## 🚦 Setup & Deployment
-
-### 1. Configure environment
-Copy `.env.example` to `.env` and provide:
-- **Meta WhatsApp Cloud API**: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` (permanent System User token), `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`.
-- **Fireworks**: `FIREWORKS_API_KEY`.
-- **Redis**: `REDIS_URL` (or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
-- **Supabase**: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`.
-- **Pinecone** (optional grounding): `PINECONE_API_KEY`.
-
-### 2. Run the backend
 ```bash
-pip install -r requirements.txt
-python main.py          # serves on $PORT (health at /health)
+python -m pytest tests -q
 ```
 
-### 3. Connect the Meta webhook
-Point your Meta app's webhook to `https://<your-host>/webhook`, subscribe to the `messages` field, and use the same verify token as `WHATSAPP_VERIFY_TOKEN`. Subscribe the app to the WABA (`POST /{WABA_ID}/subscribed_apps`).
-
-### 4. Ingest the knowledge base (for grounding)
-```bash
-python scripts/ingest_kb.py      # creates the Pinecone index and loads prompts/layers/knowledge.md + prompts/knowledge + prompts/objections
-```
-Re-run whenever the knowledge base changes (idempotent by record id).
-
-### 5. Deploy
-Hosted on **Render** (Pro workspace) as the `markeye-whatsapp-agent` web service on the paid **Starter** instance (0.5 CPU / 512 MB, always-on, no free-tier sleep). Config lives in `render.yaml`.
-
-Push to `main` → Render auto-deploys. Live at https://markeye-whatsapp-agent.onrender.com (admin dashboard at `/admin`). Confirm health via `/health` and `/metrics`.
+Decision records for the test harness are in [ADR 0002](docs/adr/0002-agent-harness-and-eval.md).
 
 ---
 
-## 📱 Messaging Provider
-
-**Production runs exclusively on the official Meta WhatsApp Cloud API.** This is the supported, ban-safe path.
-
-- The first outbound message to a new lead must be a pre-approved **Meta message template**. Free-form messages are only allowed inside the 24-hour customer service window opened by a lead's reply.
-- Inbound webhooks can be HMAC-verified with `WHATSAPP_APP_SECRET` (recommended for production).
-
-> A legacy Node.js Baileys relay exists in `baileys-service/` from earlier development. It is **not used in production** and is retained only for reference. Do not connect client numbers through it.
-
----
-
-## 🎯 Agent Actions (trigger tags)
-
-Mark appends these tags to the end of a message; they are stripped before the lead sees them:
-
-- `[SEND_BOOKING_POLL]` — offer call times via a clickable poll
-- `[SEND_CALENDLY]` — send the booking link (only when asked / agreed)
-- `[SEND_PRICING]` — send the pricing overview
-- `[ESCALATE]` — hand off to a human rep
-
----
-
-## 🔍 Diagnostics
-
-API-key-guarded read endpoints (require `X-API-Key: $OUTBOUND_API_KEY`):
-
-- `GET /health` — liveness
-- `GET /metrics` — uptime, message counts, LLM usage
-- `GET /debug/prompt-source` — which prompt source is live (layered vs monolith) + active flags
-- `GET /debug/memory/{phone}` — the structured `lead_memory` record for a lead
-
----
-
-## 🗺️ Roadmap
+## Roadmap
 
 - [x] LangGraph conversation engine
-- [x] Migration to official Meta WhatsApp Cloud API
-- [x] Fireworks-only LLM chain with fail-fast fallback
-- [x] Layered context architecture (ADR 0001)
-- [x] Eval harness (ADR 0002)
+- [x] Move to the official Meta WhatsApp Cloud API
+- [x] Fireworks-only model chain with fail-fast fallback
+- [x] Layered context (ADR 0001)
+- [x] Test harness (ADR 0002)
 - [x] Structured conversation memory (ADR 0003)
-- [x] Pinecone grounding + deterministic output filter (ADR 0004)
-- [ ] Cross-conversation long-term memory
-- [ ] Voice-to-voice real-time
+- [x] Pinecone grounding and output filter (ADR 0004)
+- [x] Admin dashboard served from the backend
+- [x] Hosting on Render
+- [ ] Long-term memory across conversations
+- [ ] Real-time voice-to-voice calls
 
 ---
 
-**Built by the Markeye Engineering Team.** · [markeye.space](https://markeye.space)
+## How to contribute
+
+Please open an issue before you start work, so we can agree on the change first.
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests and the pull request flow.
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+- Report security problems privately as described in [SECURITY.md](SECURITY.md). Do not open a public issue for them.
+- See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
+---
+
+## Credits
+
+- Built by the Markeye team, [markeye.space](https://markeye.space).
+- README structure based on [How to Write a Good README File for Your GitHub Project](https://www.freecodecamp.org/news/how-to-write-a-good-readme-file/) by Hillary Nyakundi on freeCodeCamp.
+- [Contributor Covenant](https://www.contributor-covenant.org/) for the Code of Conduct.
+- [Keep a Changelog](https://keepachangelog.com/) for the changelog format.
+- Badges from [shields.io](https://shields.io/).
+- Built with [FastAPI](https://fastapi.tiangolo.com/), [LangGraph](https://langchain-ai.github.io/langgraph/), [Fireworks AI](https://fireworks.ai/), the [Meta WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api/), [Supabase](https://supabase.com/), [Redis](https://redis.io/), [Pinecone](https://www.pinecone.io/), [Cal.com](https://cal.com/), [React](https://react.dev/) and [Vite](https://vite.dev/).
+
+---
+
+## License
+
+Copyright (c) 2026 Nihal Mishra. All rights reserved.
+
+This code is not open source. You may view it on GitHub, but you may not use, copy, change, share or sell it without written permission. See [LICENSE](LICENSE) for the full terms.
